@@ -1132,6 +1132,16 @@ local function handle(cid, msg)
         if b.balance < wager then
             rednet.send(cid,{ok=false,err="Need "..wager.."sp (have "..b.balance.."sp)"},PROTOCOL) return
         end
+        local function maxMult(nb)
+            local m=1.0; local ng=25-nb
+            for i=0,ng-1 do m=m*(25-i)/(25-nb-i) end
+            return m*0.80
+        end
+        local maxPayout=math.floor(wager*maxMult(nbombs))
+        local equity=countVaultValue(BANK_VAULT)-totalDeposits()
+        if equity < maxPayout-wager then
+            rednet.send(cid,{ok=false,err="Bank cannot cover max payout, try smaller bet"},PROTOCOL) return
+        end
         if not bankData.mines_games then bankData.mines_games={} end
         for gid,g in pairs(bankData.mines_games) do
             if g.uname==uname then bankData.mines_games[gid]=nil end
