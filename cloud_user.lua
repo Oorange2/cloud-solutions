@@ -2096,7 +2096,10 @@ local function minesGame()
                 local bi2=rpc({type="bank_info",token=token},5) bal=(bi2 and bi2.balance) or bal
             end
         elseif ev=="mouse_scroll" then
-            if state=="setup" then wager=math.max(1,math.min(bal,wager-p1)) end
+            if state=="setup" then
+                if p3==4 then num_bombs=math.max(1,math.min(24,num_bombs-p1))
+                else wager=math.max(1,math.min(bal,wager-p1)) end
+            end
         elseif ev=="key" then
             if p1==keys.q then return end
             if state=="over" then
