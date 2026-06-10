@@ -1005,7 +1005,7 @@ local function handle(cid, msg)
             daily_loan_int = daily_loan_int,
             daily_dep_int  = daily_dep_int,
             market_revenue = mkt24,
-            slots_revenue  = bankData.slots_revenue or 0,
+            slots_revenue  = (bankData.slots_revenue or 0)+(bankData.mines_revenue or 0),
         }, PROTOCOL)
 
     -- ── Coinflip handlers ─────────────────────────────────────────────────────
@@ -1123,6 +1123,105 @@ local function handle(cid, msg)
         end
         saveBank()
         rednet.send(cid,{ok=true,outcome=outcome,mult=mult,prize=prize,wager=wager,balance=b.balance},PROTOCOL)
+
+    elseif msg.type == "mines_start" then
+        local wager  = math.max(1, math.floor(tonumber(msg.wager)  or 0))
+        local nbombs = math.max(1, math.min(24, math.floor(tonumber(msg.bombs) or 3)))
+        applyDepInterest(uname) applyLoanInterest(uname)
+        local b = getBankAcc(uname)
+        if b.balance < wager then
+            rednet.send(cid,{ok=false,err="Need "..wager.."sp (have "..b.balance.."sp)"},PROTOCOL) return
+        end
+        if not bankData.mines_games then bankData.mines_games={} end
+        for gid,g in pairs(bankData.mines_games) do
+            if g.uname==uname then bankData.mines_games[gid]=nil end
+        end
+        math.randomseed(os.epoch("utc"))
+        local pos={}; for i=1,25 do pos[i]=i end
+        for i=1,nbombs do
+            local j=math.random(i,25)
+            pos[i],pos[j]=pos[j],pos[i]
+        end
+        local bombs={}
+        for i=1,nbombs do bombs[pos[i]]=true end
+        b.balance=b.balance-wager
+        local gid=(bankData.mines_next_id or 0)+1
+        bankData.mines_next_id=gid
+        bankData.mines_games[tostring(gid)]={
+            id=gid,uname=uname,wager=wager,bombs=bombs,
+            num_bombs=nbombs,revealed={},active=true,
+        }
+        saveBank()
+        rednet.send(cid,{ok=true,game_id=gid,num_bombs=nbombs,balance=b.balance},PROTOCOL)
+
+    elseif msg.type == "mines_reveal" then
+        if not bankData.mines_games then bankData.mines_games={} end
+        local g=bankData.mines_games[tostring(msg.game_id)]
+        if not g or not g.active or g.uname~=uname then
+            rednet.send(cid,{ok=false,err="No active game"},PROTOCOL) return
+        end
+        local tile=math.floor(tonumber(msg.tile) or 0)
+        if tile<1 or tile>25 then rednet.send(cid,{ok=false,err="Bad tile"},PROTOCOL) return end
+        if g.revealed[tile] then rednet.send(cid,{ok=false,err="Already revealed"},PROTOCOL) return end
+        local function minesMult(nb,ng)
+            local m=1.0
+            for i=0,ng-1 do m=m*(25-i)/(25-nb-i) end
+            return m*0.80
+        end
+        g.revealed[tile]=true
+        if g.bombs[tile] then
+            g.active=false
+            bankData.mines_revenue=(bankData.mines_revenue or 0)+g.wager
+            local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
+            saveBank()
+            rednet.send(cid,{ok=true,is_bomb=true,bombs=bl,wager=g.wager},PROTOCOL)
+        else
+            local gems=0; for _,_ in pairs(g.revealed) do gems=gems+1 end
+            local total_gems=25-g.num_bombs
+            local mult=minesMult(g.num_bombs,gems)
+            local payout=math.floor(g.wager*mult)
+            if gems>=total_gems then
+                g.active=false
+                local equity=countVaultValue(BANK_VAULT)-totalDeposits()
+                if equity<payout-g.wager then payout=g.wager end
+                local bb=getBankAcc(uname)
+                bb.balance=bb.balance+payout
+                bankData.mines_revenue=(bankData.mines_revenue or 0)+(g.wager-payout)
+                local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
+                saveBank()
+                rednet.send(cid,{ok=true,is_bomb=false,gems=gems,multiplier=mult,potential_payout=payout,all_found=true,bombs=bl,new_balance=bb.balance},PROTOCOL)
+            else
+                saveBank()
+                rednet.send(cid,{ok=true,is_bomb=false,gems=gems,multiplier=mult,potential_payout=payout,all_found=false},PROTOCOL)
+            end
+        end
+
+    elseif msg.type == "mines_cashout" then
+        if not bankData.mines_games then bankData.mines_games={} end
+        local g=bankData.mines_games[tostring(msg.game_id)]
+        if not g or not g.active or g.uname~=uname then
+            rednet.send(cid,{ok=false,err="No active game"},PROTOCOL) return
+        end
+        local gems=0; for _,_ in pairs(g.revealed) do gems=gems+1 end
+        if gems==0 then rednet.send(cid,{ok=false,err="Reveal at least 1 gem first"},PROTOCOL) return end
+        local function minesMult(nb,ng)
+            local m=1.0
+            for i=0,ng-1 do m=m*(25-i)/(25-nb-i) end
+            return m*0.80
+        end
+        local mult=minesMult(g.num_bombs,gems)
+        local payout=math.floor(g.wager*mult)
+        if payout>g.wager then
+            local equity=countVaultValue(BANK_VAULT)-totalDeposits()
+            if equity<payout-g.wager then payout=g.wager end
+        end
+        local b=getBankAcc(uname)
+        b.balance=b.balance+payout
+        g.active=false
+        bankData.mines_revenue=(bankData.mines_revenue or 0)+(g.wager-payout)
+        local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
+        saveBank()
+        rednet.send(cid,{ok=true,payout=payout,mult=mult,gems=gems,bombs=bl,new_balance=b.balance},PROTOCOL)
     end
 end
 
