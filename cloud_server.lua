@@ -1005,6 +1005,7 @@ local function handle(cid, msg)
             daily_loan_int = daily_loan_int,
             daily_dep_int  = daily_dep_int,
             market_revenue = mkt24,
+            slots_revenue  = bankData.slots_revenue or 0,
         }, PROTOCOL)
 
     -- ── Coinflip handlers ─────────────────────────────────────────────────────
