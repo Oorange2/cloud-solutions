@@ -1126,7 +1126,7 @@ local function handle(cid, msg)
 
     elseif msg.type == "mines_start" then
         local wager  = math.max(1, math.floor(tonumber(msg.wager)  or 0))
-        local nbombs = math.max(1, math.min(24, math.floor(tonumber(msg.bombs) or 3)))
+        local nbombs = math.max(5, math.min(24, math.floor(tonumber(msg.bombs) or 5)))
         applyDepInterest(uname) applyLoanInterest(uname)
         local b = getBankAcc(uname)
         if b.balance < wager then
@@ -1166,7 +1166,7 @@ local function handle(cid, msg)
         local function minesMult(nb,ng)
             local m=1.0
             for i=0,ng-1 do m=m*(25-i)/(25-nb-i) end
-            return m*(0.40*(nb+22)/23)
+            return m*(0.40*(nb+14)/19)
         end
         g.revealed[tile]=true
         if g.bombs[tile] then
@@ -1207,7 +1207,7 @@ local function handle(cid, msg)
         local function minesMult(nb,ng)
             local m=1.0
             for i=0,ng-1 do m=m*(25-i)/(25-nb-i) end
-            return m*(0.40*(nb+22)/23)
+            return m*(0.40*(nb+14)/19)
         end
         local mult=minesMult(g.num_bombs,gems)
         local payout=math.floor(g.wager*mult)
