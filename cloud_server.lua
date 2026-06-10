@@ -1105,8 +1105,8 @@ local function handle(cid, msg)
         local roll = math.random(1,1000)
         local mult, outcome
         if     roll <= 5   then mult=10; outcome="jackpot"
-        elseif roll <= 25  then mult=5;  outcome="bigwin"
-        elseif roll <= 225 then mult=2;  outcome="win"
+        elseif roll <= 35  then mult=5;  outcome="bigwin"
+        elseif roll <= 285 then mult=2;  outcome="win"
         else                    mult=0;  outcome="loss"
         end
         local prize = wager * mult
