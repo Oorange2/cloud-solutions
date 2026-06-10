@@ -1933,6 +1933,180 @@ local function myBets()
     end
 end
 
+local function minesGame()
+    local bi=rpc({type="bank_info",token=token},5)
+    local bal=(bi and bi.balance) or 0
+    local wager=math.max(1,math.min(10,bal))
+    local num_bombs=3
+    local state="setup"
+    local game_id=nil
+    local grid={}; for i=1,25 do grid[i]="hidden" end
+    local gems_found=0
+    local cur_mult=1.0
+    local cur_payout=0
+    local result_msg="" local result_col=colors.white
+    local err_msg="" local err_t=0
+    local GRID_TOP=6
+
+    local function xyToTile(mx,my)
+        local gy=my-GRID_TOP
+        if gy<0 or gy>4 then return nil end
+        local gx_raw=mx-4
+        if gx_raw<0 or gx_raw>18 then return nil end
+        if gx_raw%4==3 then return nil end
+        return gy*5+math.floor(gx_raw/4)+1
+    end
+
+    local function drawGrid()
+        for row=0,4 do
+            term.setCursorPos(4,GRID_TOP+row)
+            for col=0,4 do
+                local t=row*5+col+1
+                local st=grid[t]
+                if     st=="gem"  then term.setBackgroundColor(colors.lime)   term.setTextColor(colors.black) term.write(" * ")
+                elseif st=="bomb" then term.setBackgroundColor(colors.red)    term.setTextColor(colors.white) term.write(" X ")
+                elseif st=="safe" then term.setBackgroundColor(colors.orange) term.setTextColor(colors.black) term.write(" . ")
+                else                   term.setBackgroundColor(colors.gray)   term.setTextColor(colors.black) term.write(" ? ")
+                end
+                if col<4 then term.setBackgroundColor(colors.black) term.write(" ") end
+            end
+        end
+        term.setBackgroundColor(colors.black)
+    end
+
+    local function draw()
+        W,H=term.getSize()
+        term.setBackgroundColor(colors.black) term.clear()
+        term.setBackgroundColor(colors.red) term.setTextColor(colors.white)
+        term.setCursorPos(1,1) term.clearLine()
+        term.write(" MINES"..string.rep(" ",W-9).."[X]")
+        term.setBackgroundColor(colors.black)
+        term.setCursorPos(2,2) term.setTextColor(colors.gray) term.write("Bal: ")
+        term.setTextColor(colors.yellow) term.write(bal.."sp")
+        term.setCursorPos(2,3) term.setTextColor(colors.gray) term.write("Bet: ")
+        term.setTextColor(colors.white) term.write(wager.."sp")
+        if state=="setup" then
+            term.setCursorPos(16,3) term.setBackgroundColor(colors.gray) term.setTextColor(colors.white) term.write(" -1 ")
+            term.setCursorPos(21,3) term.write(" +1 ")
+            term.setBackgroundColor(colors.black)
+            term.setCursorPos(2,4) term.setTextColor(colors.gray) term.write("Bombs: ")
+            term.setTextColor(colors.white) term.write(num_bombs)
+            term.setCursorPos(14,4) term.setBackgroundColor(colors.gray) term.setTextColor(colors.white) term.write(" - ")
+            term.setCursorPos(18,4) term.write(" + ")
+            term.setBackgroundColor(colors.black)
+        elseif state=="playing" then
+            term.setCursorPos(2,4)
+            term.setTextColor(colors.lime) term.write(string.format("%.2fx",cur_mult))
+            term.setTextColor(colors.gray) term.write("  Gems: ")
+            term.setTextColor(colors.white) term.write(gems_found.."/".. (25-num_bombs))
+        else
+            term.setCursorPos(2,4) term.setTextColor(result_col) term.write(result_msg:sub(1,W-2))
+        end
+        term.setCursorPos(1,5) term.setBackgroundColor(colors.black) term.setTextColor(colors.gray)
+        term.write(string.rep("-",W))
+        drawGrid()
+        term.setCursorPos(1,12) term.setBackgroundColor(colors.black) term.clearLine()
+        if state=="setup" then
+            term.setCursorPos(2,12) term.setBackgroundColor(colors.green) term.setTextColor(colors.white)
+            term.write(string.rep(" ",W-3))
+            term.setCursorPos(math.floor((W-5)/2)+1,12) term.write("START")
+            term.setBackgroundColor(colors.black)
+        elseif state=="playing" then
+            if gems_found>0 then
+                local cs=" CASH OUT: "..cur_payout.."sp "
+                term.setCursorPos(math.max(2,math.floor((W-#cs)/2)+1),12)
+                term.setBackgroundColor(colors.yellow) term.setTextColor(colors.black) term.write(cs)
+                term.setBackgroundColor(colors.black)
+            else
+                term.setCursorPos(2,12) term.setTextColor(colors.gray) term.write("Reveal a gem first")
+            end
+        else
+            term.setCursorPos(2,12) term.setTextColor(colors.gray) term.write("Any key = new game")
+        end
+        if err_msg~="" and os.clock()<err_t then
+            term.setCursorPos(2,14) term.setTextColor(colors.red) term.write(err_msg:sub(1,W-2))
+        end
+        term.setCursorPos(2,H) term.setBackgroundColor(colors.gray) term.setTextColor(colors.white) term.write(" Back ")
+        term.setBackgroundColor(colors.black)
+    end
+
+    local function reset()
+        for i=1,25 do grid[i]="hidden" end
+        gems_found=0 cur_mult=1.0 cur_payout=0 result_msg="" game_id=nil state="setup"
+    end
+
+    while true do
+        draw()
+        local ev,p1,p2,p3=os.pullEvent()
+        if ev=="mouse_click" then
+            local mx,my=p2,p3
+            if my==1 and mx>=W-2 then return end
+            if my==H and mx>=2 and mx<=7 then return end
+            if state=="setup" then
+                if my==3 and mx>=16 and mx<=19 then wager=math.max(1,wager-1) end
+                if my==3 and mx>=21 and mx<=24 then wager=math.min(bal,wager+1) end
+                if my==4 and mx>=14 and mx<=16 then num_bombs=math.max(1,num_bombs-1) end
+                if my==4 and mx>=18 and mx<=20 then num_bombs=math.min(24,num_bombs+1) end
+                if my==12 then
+                    if bal<wager then err_msg="Not enough balance" err_t=os.clock()+2
+                    else
+                        local r=rpc({type="mines_start",token=token,wager=wager,bombs=num_bombs},8)
+                        if not r or not r.ok then err_msg=(r and r.err) or "Server error" err_t=os.clock()+3
+                        else
+                            game_id=r.game_id
+                            for i=1,25 do grid[i]="hidden" end
+                            gems_found=0 cur_mult=1.0 cur_payout=0
+                            state="playing" bal=r.balance
+                        end
+                    end
+                end
+            elseif state=="playing" then
+                if my==12 and gems_found>0 then
+                    local r=rpc({type="mines_cashout",token=token,game_id=game_id},8)
+                    if r and r.ok then
+                        for _,bp in ipairs(r.bombs) do if grid[bp]=="hidden" then grid[bp]="safe" end end
+                        result_msg=string.format("Cashed %.2fx = %dsp!",r.mult,r.payout)
+                        result_col=colors.lime state="over" bal=r.new_balance
+                    end
+                end
+                local tile=xyToTile(mx,my)
+                if tile and grid[tile]=="hidden" then
+                    local r=rpc({type="mines_reveal",token=token,game_id=game_id,tile=tile},8)
+                    if r and r.ok then
+                        if r.is_bomb then
+                            grid[tile]="bomb"
+                            for _,bp in ipairs(r.bombs) do if grid[bp]=="hidden" then grid[bp]="bomb" end end
+                            result_msg="BOOM! Lost "..r.wager.."sp"
+                            result_col=colors.red state="over"
+                            local bi2=rpc({type="bank_info",token=token},5)
+                            bal=(bi2 and bi2.balance) or bal
+                        else
+                            grid[tile]="gem" gems_found=r.gems
+                            cur_mult=r.multiplier cur_payout=r.potential_payout
+                            if r.all_found then
+                                for _,bp in ipairs(r.bombs) do if grid[bp]=="hidden" then grid[bp]="safe" end end
+                                result_msg=string.format("ALL GEMS! %.2fx = %dsp!",r.multiplier,r.potential_payout)
+                                result_col=colors.cyan state="over" bal=r.new_balance
+                            end
+                        end
+                    else err_msg=(r and r.err) or "Server error" err_t=os.clock()+2 end
+                end
+            elseif state=="over" then
+                reset()
+                local bi2=rpc({type="bank_info",token=token},5) bal=(bi2 and bi2.balance) or bal
+            end
+        elseif ev=="mouse_scroll" then
+            if state=="setup" then wager=math.max(1,math.min(bal,wager-p1)) end
+        elseif ev=="key" then
+            if p1==keys.q then return end
+            if state=="over" then
+                reset()
+                local bi2=rpc({type="bank_info",token=token},5) bal=(bi2 and bi2.balance) or bal
+            end
+        end
+    end
+end
+
 local function slotsGame()
     local SYMS = {
         {label=" LEM  ", color=colors.yellow  },  -- 1 loss
@@ -2072,14 +2246,16 @@ end
 local function gamblingMenu()
     local menuItems={
         {label="Coinflip", icon=colors.pink  },
+        {label="Mines",    icon=colors.red   },
         {label="Slots",    icon=colors.yellow},
         {label="Back",     icon=colors.gray  },
     }
     while true do
         local sel=clickMenu("Gambling",menuItems)
-        if sel==nil or sel==3 then return
+        if sel==nil or sel==4 then return
         elseif sel==1 then coinflipMenu()
-        elseif sel==2 then slotsGame()
+        elseif sel==2 then minesGame()
+        elseif sel==3 then slotsGame()
         end
     end
 end
@@ -2482,7 +2658,7 @@ local function adminMenu()
                 table.insert(lines, "Loan int/d: " .. (res.daily_loan_int or 0) .. " sp")
                 table.insert(lines, "Dep int/d:  " .. (res.daily_dep_int  or 0) .. " sp")
                 table.insert(lines, "Mkt 24h:    " .. (res.market_revenue or 0) .. " sp")
-                table.insert(lines, "Slots:      " .. (res.slots_revenue  or 0) .. " sp")
+                table.insert(lines, "Gambling:   " .. (res.slots_revenue  or 0) .. " sp")
                 table.insert(lines, "House tot:  " .. ((res.market_revenue or 0)+(res.slots_revenue or 0)) .. " sp")
                 table.insert(lines, string.rep("-", W))
                 for _, u in ipairs(res.users or {}) do
