@@ -1937,7 +1937,7 @@ local function minesGame()
     local bi=rpc({type="bank_info",token=token},5)
     local bal=(bi and bi.balance) or 0
     local wager=math.max(1,math.min(10,bal))
-    local num_bombs=3
+    local num_bombs=5
     local state="setup"
     local game_id=nil
     local grid={}; for i=1,25 do grid[i]="hidden" end
@@ -2045,7 +2045,7 @@ local function minesGame()
             if state=="setup" then
                 if my==3 and mx>=16 and mx<=19 then wager=math.max(1,wager-1) end
                 if my==3 and mx>=21 and mx<=24 then wager=math.min(bal,wager+1) end
-                if my==4 and mx>=14 and mx<=16 then num_bombs=math.max(1,num_bombs-1) end
+                if my==4 and mx>=14 and mx<=16 then num_bombs=math.max(5,num_bombs-1) end
                 if my==4 and mx>=18 and mx<=20 then num_bombs=math.min(24,num_bombs+1) end
                 if my==12 then
                     if bal<wager then err_msg="Not enough balance" err_t=os.clock()+2
@@ -2097,7 +2097,7 @@ local function minesGame()
             end
         elseif ev=="mouse_scroll" then
             if state=="setup" then
-                if p3==4 then num_bombs=math.max(1,math.min(24,num_bombs-p1))
+                if p3==4 then num_bombs=math.max(5,math.min(24,num_bombs-p1))
                 else wager=math.max(1,math.min(bal,wager-p1)) end
             end
         elseif ev=="key" then
