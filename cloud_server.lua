@@ -12,7 +12,7 @@ local DENOMS = {
     {name="numismatics:bevel",    label="Bevel",    value=8},
     {name="numismatics:spur",     label="Spur",     value=1},
 }
-local MARKET_VAULT = "create:item_vault_37"
+local MARKET_VAULTS = {"create:item_vault_37","create:item_vault_49","create:item_vault_50"}
 local MARKET_FILE  = "market_data.dat"
 
 local modemSide = nil
@@ -272,6 +272,24 @@ local function moveItem(fromV, toV, itemName, count)
             end)
             if ok2 and n then moved = moved + n end
         end
+    end
+    return moved
+end
+
+local function moveToMarket(fromV, itemName, count)
+    local moved = 0
+    for _, vault in ipairs(MARKET_VAULTS) do
+        if moved >= count then break end
+        moved = moved + moveItem(fromV, vault, itemName, count - moved)
+    end
+    return moved
+end
+
+local function moveFromMarket(toV, itemName, count)
+    local moved = 0
+    for _, vault in ipairs(MARKET_VAULTS) do
+        if moved >= count then break end
+        moved = moved + moveItem(vault, toV, itemName, count - moved)
     end
     return moved
 end
@@ -753,24 +771,24 @@ local function handle(cid, msg)
                     acc.vaultDir or "back",{name=msg.item_name,count=total})
             end)
             if not ok2 or not n or n==0 then rednet.send(cid,{ok=false,err="Item not in inventory"},PROTOCOL) return end
-            moved = moveItem(acc.vault, MARKET_VAULT, msg.item_name, n)
+            moved = moveToMarket(acc.vault, msg.item_name, n)
             if moved < lot_size then
-                if moved>0 then moveItem(MARKET_VAULT,acc.vault,msg.item_name,moved) end
+                if moved>0 then moveFromMarket(acc.vault,msg.item_name,moved) end
                 rednet.send(cid,{ok=false,err="Market vault transfer failed"},PROTOCOL) return
             end
         else
             if not acc or not acc.vault or not peripheral.isPresent(acc.vault) then
                 rednet.send(cid,{ok=false,err="No vault"},PROTOCOL) return
             end
-            moved = moveItem(acc.vault, MARKET_VAULT, msg.item_name, total)
+            moved = moveToMarket(acc.vault, msg.item_name, total)
             if moved < lot_size then
-                if moved>0 then moveItem(MARKET_VAULT,acc.vault,msg.item_name,moved) end
+                if moved>0 then moveFromMarket(acc.vault,msg.item_name,moved) end
                 rednet.send(cid,{ok=false,err="Not enough items in vault"},PROTOCOL) return
             end
         end
         local actual_lots = math.floor(moved / lot_size)
         local remainder   = moved - actual_lots * lot_size
-        if remainder > 0 then moveItem(MARKET_VAULT, acc.vault, msg.item_name, remainder) end
+        if remainder > 0 then moveFromMarket(acc.vault, msg.item_name, remainder) end
         -- Merge with existing matching listing
         local merged_id = nil
         for key, l in pairs(marketData.listings) do
@@ -811,13 +829,13 @@ local function handle(cid, msg)
                     acc.vaultDir or "back",{name=l.item_name,count=total})
             end)
             if not ok2 or not n or n==0 then rednet.send(cid,{ok=false,err="Item not in inventory"},PROTOCOL) return end
-            moved = moveItem(acc.vault, MARKET_VAULT, l.item_name, n)
+            moved = moveToMarket(acc.vault, l.item_name, n)
         else
-            moved = moveItem(acc.vault, MARKET_VAULT, l.item_name, total)
+            moved = moveToMarket(acc.vault, l.item_name, total)
         end
         local actual = math.floor(moved / l.lot_size)
         local rem    = moved - actual * l.lot_size
-        if rem > 0 then moveItem(MARKET_VAULT, acc.vault, l.item_name, rem) end
+        if rem > 0 then moveFromMarket(acc.vault, l.item_name, rem) end
         if actual == 0 then rednet.send(cid,{ok=false,err="No items transferred"},PROTOCOL) return end
         l.stock = l.stock + actual
         l.out_of_stock_ts = nil  -- restocked, reset expiry timer
@@ -839,9 +857,9 @@ local function handle(cid, msg)
             rednet.send(cid,{ok=false,err="Need "..totalPrice.." sp, have "..b.balance.." sp"},PROTOCOL) return
         end
         -- Move items: market vault → buyer vault
-        local moved = moveItem(MARKET_VAULT, acc.vault, l.item_name, totalItems)
+        local moved = moveFromMarket(acc.vault, l.item_name, totalItems)
         if moved < totalItems then
-            if moved>0 then moveItem(acc.vault,MARKET_VAULT,l.item_name,moved) end
+            if moved>0 then moveToMarket(acc.vault,l.item_name,moved) end
             rednet.send(cid,{ok=false,err="Item transfer failed, try again"},PROTOCOL) return
         end
         -- Push to player inventory directly
@@ -887,7 +905,7 @@ local function handle(cid, msg)
         end
         local returned = 0
         if l.stock > 0 and acc and acc.vault then
-            returned = moveItem(MARKET_VAULT, acc.vault, l.item_name, l.stock * l.lot_size)
+            returned = moveFromMarket(acc.vault, l.item_name, l.stock * l.lot_size)
         end
         marketData.listings[tostring(msg.listing_id)] = nil
         saveMarket()
