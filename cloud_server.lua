@@ -1093,6 +1093,35 @@ local function handle(cid, msg)
         end
         table.sort(mine, function(a,b) return (a.created_ts or 0) > (b.created_ts or 0) end)
         rednet.send(cid,{ok=true,bets=mine},PROTOCOL)
+
+    elseif msg.type == "slots_spin" then
+        local wager = math.max(1, math.floor(tonumber(msg.wager) or 0))
+        applyDepInterest(uname) applyLoanInterest(uname)
+        local b = getBankAcc(uname)
+        if b.balance < wager then
+            rednet.send(cid,{ok=false,err="Need "..wager.." sp (have "..b.balance.." sp)"},PROTOCOL) return
+        end
+        math.randomseed(os.epoch("utc"))
+        local roll = math.random(1,1000)
+        local mult, outcome
+        if     roll <= 5   then mult=10; outcome="jackpot"
+        elseif roll <= 25  then mult=5;  outcome="bigwin"
+        elseif roll <= 225 then mult=2;  outcome="win"
+        else                    mult=0;  outcome="loss"
+        end
+        local prize = wager * mult
+        if mult > 0 then
+            local equity = countVaultValue(BANK_VAULT) - totalDeposits()
+            if equity < prize - wager then
+                rednet.send(cid,{ok=false,err="Bank cannot cover payout, try smaller bet"},PROTOCOL) return
+            end
+        end
+        b.balance = b.balance - wager + prize
+        if mult == 0 then
+            bankData.slots_revenue = (bankData.slots_revenue or 0) + wager
+        end
+        saveBank()
+        rednet.send(cid,{ok=true,outcome=outcome,mult=mult,prize=prize,wager=wager,balance=b.balance},PROTOCOL)
     end
 end
 
