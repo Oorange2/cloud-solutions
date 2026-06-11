@@ -2666,15 +2666,22 @@ local function adminMenu()
                         term.setBackgroundColor(colors.red)    term.write(" Yes ")
                         term.setBackgroundColor(colors.black)  term.write("   ")
                         term.setBackgroundColor(colors.gray)   term.write(" No ")
-                        local ev4, p4, p5, p6 = os.pullEvent()
-                        if ev4 == "mouse_click" and p6 == 5 then
-                            if p5 >= 1 and p5 <= 5 then
-                                local r = rpc({type="admin_delete_user",token=token,username=target},10)
-                                if r and r.ok then msg2="Deleted: "..target mt2=os.clock()+3 break end
+                        while true do
+                            local ev4,p4,p5,p6 = os.pullEvent()
+                            if ev4=="mouse_click" then
+                                if p6==5 and p5>=1 and p5<=5 then
+                                    local r=rpc({type="admin_delete_user",token=token,username=target},10)
+                                    if r and r.ok then msg2="Deleted: "..target mt2=os.clock()+3 end
+                                    break
+                                elseif p6==5 and p5>=9 and p5<=12 then break
+                                end
+                            elseif ev4=="key" then
+                                if p4==keys.y then
+                                    local r=rpc({type="admin_delete_user",token=token,username=target},10)
+                                    if r and r.ok then msg2="Deleted: "..target mt2=os.clock()+3 end
+                                end
+                                break
                             end
-                        elseif ev4 == "key" and p4 == keys.y then
-                            local r = rpc({type="admin_delete_user",token=token,username=target},10)
-                            if r and r.ok then msg2="Deleted: "..target mt2=os.clock()+3 break end
                         end
                     end
                 end
