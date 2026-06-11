@@ -11,11 +11,11 @@ if not mon then error("No monitor attached") end
 mon.setTextScale(MON_SCALE)
 local W, H = mon.getSize()
 
-local modem = peripheral.find("modem", function(_, p) return p.isWireless() end)
-if modem then rednet.open(peripheral.getName(modem))
-else for _, name in ipairs(peripheral.getNames()) do
-    if peripheral.getType(name) == "modem" then rednet.open(name) break end
-end end
+for _, name in ipairs(peripheral.getNames()) do
+    if peripheral.getType(name) == "modem" then
+        rednet.open(name)
+    end
+end
 
 -- ── RPC ──────────────────────────────────────────────────────────────────────
 local serverId, rpcSeq = nil, 0
@@ -72,7 +72,13 @@ local lastFetch = -REFRESH_SECS
 local fetchOk   = false
 
 local function fetchListings()
-    local r = rpc({type="market_public_list"}, 10)
+    local r
+    for attempt = 1, 3 do
+        r = rpc({type="market_public_list"}, 10)
+        if r and r.ok then break end
+        serverId = nil  -- forget cached server id, rebroadcast next attempt
+        sleep(1)
+    end
     if r and r.ok then
         listings   = r.listings or {}
         serverNow  = r.now or 0
