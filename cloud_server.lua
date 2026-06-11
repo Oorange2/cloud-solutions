@@ -405,6 +405,21 @@ local function handle(cid, msg)
         rednet.send(cid, { names=peripheral.getNames() }, PROTOCOL) return
     end
 
+    if msg.type == "market_public_list" then
+        pruneStaleListings()
+        local now = os.epoch("utc")
+        local active = {}
+        for _, l in pairs(marketData.listings) do
+            table.insert(active, {
+                id=l.id, seller=l.seller,
+                item_name=l.item_name, display_name=l.display_name,
+                lot_size=l.lot_size, price=l.price, stock=l.stock,
+                boost_ts=l.boost_ts,
+            })
+        end
+        rednet.send(cid, {ok=true, listings=active, now=now}, PROTOCOL) return
+    end
+
     local sess = getSession(msg.token)
     if not sess then rednet.send(cid, { err="Session expired" }, PROTOCOL) return end
     local uname = sess.username
