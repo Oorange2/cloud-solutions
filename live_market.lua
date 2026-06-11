@@ -6,8 +6,8 @@ local PROTOCOL      = "cloud_v1"
 local REFRESH_SECS  = 30
 local MON_SCALE     = 1
 
-local mon = peripheral.find("monitor")
-if not mon then error("No monitor attached") end
+local mon = peripheral.wrap("right")
+if not mon then error("No monitor on right side") end
 mon.setTextScale(MON_SCALE)
 local W, H = mon.getSize()
 
