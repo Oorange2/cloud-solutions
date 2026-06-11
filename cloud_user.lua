@@ -2246,6 +2246,76 @@ local function coinflipMenu()
     end
 end
 
+local function leaderboardScreen()
+    local tabs={"Most Won","Most Lost","Most Deposited"}
+    local tab=1
+    local data=nil
+    local function fetch()
+        local r=rpc({type="get_leaderboard",token=token},8)
+        if r and r.ok then data=r else data=nil end
+    end
+    fetch()
+    while true do
+        W,H=term.getSize()
+        term.setBackgroundColor(colors.black) term.clear()
+        term.setBackgroundColor(colors.purple) term.setTextColor(colors.white)
+        term.setCursorPos(1,1) term.clearLine()
+        term.write(" Leaderboard")
+        -- tab bar
+        local tx=1
+        for i,label in ipairs(tabs) do
+            if i==tab then
+                term.setBackgroundColor(colors.white) term.setTextColor(colors.black)
+            else
+                term.setBackgroundColor(colors.gray) term.setTextColor(colors.white)
+            end
+            term.setCursorPos(tx,2) term.write(" "..label:sub(1,8).." ")
+            tx=tx+#label:sub(1,8)+2
+        end
+        term.setBackgroundColor(colors.black)
+        if not data then
+            term.setCursorPos(2,4) term.setTextColor(colors.red) term.write("Failed to load")
+        else
+            local list = tab==1 and data.won or tab==2 and data.lost or data.deposited
+            local labels={"#1","#2","#3","#4","#5","#6","#7","#8","#9","#10"}
+            local valLabel = tab==3 and "deposited" or (tab==1 and "won" or "lost")
+            term.setCursorPos(2,3) term.setTextColor(colors.gray)
+            term.write(string.format("%-4s %-14s %s","#","Player","Amount"))
+            for i,entry in ipairs(list) do
+                local y=3+i
+                term.setCursorPos(2,y)
+                local rankCol = i==1 and colors.yellow or i==2 and colors.lightGray or i==3 and colors.orange or colors.white
+                term.setTextColor(rankCol) term.write(string.format("%-4s",labels[i]))
+                term.setTextColor(colors.white) term.write(string.format("%-14s",entry.name:sub(1,13)))
+                term.setTextColor(colors.lime) term.write(entry.value.."sp")
+            end
+            if #list==0 then
+                term.setCursorPos(2,5) term.setTextColor(colors.gray) term.write("No data yet")
+            end
+        end
+        term.setCursorPos(1,H) term.setBackgroundColor(colors.gray) term.setTextColor(colors.white)
+        term.clearLine() term.write(" Back  [R]efresh")
+        term.setBackgroundColor(colors.black)
+        local ev,p1,p2,p3=os.pullEvent()
+        if ev=="mouse_click" then
+            if p3==H and p2>=2 and p2<=5 then return end
+            if p3==2 then
+                local tx2=1
+                for i,label in ipairs(tabs) do
+                    local w=#label:sub(1,8)+2
+                    if p2>=tx2 and p2<tx2+w then tab=i break end
+                    tx2=tx2+w
+                end
+            end
+        elseif ev=="key" then
+            if p1==keys.q or p1==keys.backspace then return end
+            if p1==keys.r then fetch() end
+            if p1==keys.right or p1==keys.d then tab=tab%3+1 end
+            if p1==keys.left  or p1==keys.a then tab=(tab-2)%3+1 end
+        end
+    end
+end
+
 local function gamblingMenu()
     local menuItems={
         {label="Coinflip", icon=colors.pink  },
@@ -2407,14 +2477,16 @@ local function userMenu()
             {label="Market",        icon=colors.orange},
             {label="Gambling",      icon=colors.pink  },
             {label=notifLabel,      icon=colors.purple, flash=hasUnread},
+            {label="Leaderboard",   icon=colors.lime  },
             {label="Logout",        icon=colors.red   },
         }
         local sel=clickMenu("Cloud - "..username, menuItems)
-        if sel==nil or sel==6 then token=nil username=nil isAdmin=false return
+        if sel==nil or sel==7 then token=nil username=nil isAdmin=false return
         elseif sel==1 then cloudStorageMenu()
         elseif sel==2 then bankMenu()
         elseif sel==3 then marketMenu()
         elseif sel==4 then gamblingMenu()
+        elseif sel==6 then leaderboardScreen()
         elseif sel==5 then
             notificationsScreen()
             unreadCount = 0
