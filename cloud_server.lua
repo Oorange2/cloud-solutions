@@ -128,7 +128,7 @@ local function addLog(uname, entry)
     if not acc then return end
     acc.log = acc.log or {}
     table.insert(acc.log, { time=os.date("%H:%M %d/%m"), event=entry })
-    while #acc.log > 200 do table.remove(acc.log, 1) end
+    while #acc.log > 50 do table.remove(acc.log, 1) end
     save()
 end
 
@@ -172,6 +172,15 @@ end
 local bankData = {}
 
 local function saveBank()
+    -- prune market_sales older than 30 days
+    if bankData.market_sales then
+        local cutoff = os.epoch("utc") - 30*24*60*60*1000
+        local pruned = {}
+        for _, s in ipairs(bankData.market_sales) do
+            if (s.ts or 0) >= cutoff then table.insert(pruned, s) end
+        end
+        bankData.market_sales = pruned
+    end
     local f = fs.open(BANK_FILE, "w") f.write(textutils.serialize(bankData)) f.close()
 end
 
@@ -200,7 +209,7 @@ end
 local function addBankLog(uname, event)
     local b = getBankAcc(uname)
     table.insert(b.blog, { event=event, ts=os.epoch("utc") })
-    while #b.blog > 100 do table.remove(b.blog, 1) end
+    while #b.blog > 50 do table.remove(b.blog, 1) end
 end
 
 local function addNotif(uname, msg)
