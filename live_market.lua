@@ -12,9 +12,7 @@ mon.setTextScale(MON_SCALE)
 local W, H = mon.getSize()
 
 for _, name in ipairs(peripheral.getNames()) do
-    if peripheral.getType(name) == "modem" then
-        rednet.open(name)
-    end
+    pcall(rednet.open, name)
 end
 
 -- ── RPC ──────────────────────────────────────────────────────────────────────
