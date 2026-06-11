@@ -1133,9 +1133,7 @@ local function handle(cid, msg)
             end
         end
         b.balance = b.balance - wager + prize
-        if mult == 0 then
-            bankData.slots_revenue = (bankData.slots_revenue or 0) + wager
-        end
+        bankData.slots_revenue = (bankData.slots_revenue or 0) + (wager - prize)
         saveBank()
         rednet.send(cid,{ok=true,outcome=outcome,mult=mult,prize=prize,wager=wager,balance=b.balance},PROTOCOL)
 
