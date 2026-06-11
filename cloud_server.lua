@@ -564,6 +564,7 @@ local function handle(cid, msg)
         end
         applyDepInterest(uname)
         b.balance = b.balance + total_sp
+        b.total_deposited = (b.total_deposited or 0) + total_sp
         addBankLog(uname,"Deposited "..total_sp.." sp")
         saveBank()
         rednet.send(cid,{ok=true,moved=total_sp,balance=b.balance},PROTOCOL)
@@ -1073,6 +1074,9 @@ local function handle(cid, msg)
         local prize = pot - houseCut
         local wb = getBankAcc(winner)
         wb.balance = wb.balance + prize
+        wb.gambling_won = (wb.gambling_won or 0) + (prize - f.wager)
+        local lb = getBankAcc(loser)
+        lb.gambling_lost = (lb.gambling_lost or 0) + f.wager
         bankData.market_revenue = (bankData.market_revenue or 0) + houseCut
         if not bankData.market_sales then bankData.market_sales = {} end
         table.insert(bankData.market_sales, {ts=os.epoch("utc"), tax=houseCut})
@@ -1134,6 +1138,8 @@ local function handle(cid, msg)
         end
         b.balance = b.balance - wager + prize
         bankData.slots_revenue = (bankData.slots_revenue or 0) + (wager - prize)
+        if prize > wager then b.gambling_won  = (b.gambling_won  or 0) + (prize - wager)
+        elseif wager > prize then b.gambling_lost = (b.gambling_lost or 0) + (wager - prize) end
         saveBank()
         rednet.send(cid,{ok=true,outcome=outcome,mult=mult,prize=prize,wager=wager,balance=b.balance},PROTOCOL)
 
@@ -1185,6 +1191,8 @@ local function handle(cid, msg)
         if g.bombs[tile] then
             g.active=false
             bankData.mines_revenue=(bankData.mines_revenue or 0)+g.wager
+            local lb=getBankAcc(uname)
+            lb.gambling_lost=(lb.gambling_lost or 0)+g.wager
             local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
             saveBank()
             rednet.send(cid,{ok=true,is_bomb=true,bombs=bl,wager=g.wager},PROTOCOL)
@@ -1200,6 +1208,8 @@ local function handle(cid, msg)
                 local bb=getBankAcc(uname)
                 bb.balance=bb.balance+payout
                 bankData.mines_revenue=(bankData.mines_revenue or 0)+(g.wager-payout)
+                if payout>g.wager then bb.gambling_won=(bb.gambling_won or 0)+(payout-g.wager)
+                elseif g.wager>payout then bb.gambling_lost=(bb.gambling_lost or 0)+(g.wager-payout) end
                 local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
                 saveBank()
                 rednet.send(cid,{ok=true,is_bomb=false,gems=gems,multiplier=mult,potential_payout=payout,all_found=true,bombs=bl,new_balance=bb.balance},PROTOCOL)
@@ -1232,9 +1242,23 @@ local function handle(cid, msg)
         b.balance=b.balance+payout
         g.active=false
         bankData.mines_revenue=(bankData.mines_revenue or 0)+(g.wager-payout)
+        if payout>g.wager then b.gambling_won=(b.gambling_won or 0)+(payout-g.wager)
+        elseif g.wager>payout then b.gambling_lost=(b.gambling_lost or 0)+(g.wager-payout) end
         local bl={}; for p,_ in pairs(g.bombs) do table.insert(bl,p) end
         saveBank()
         rednet.send(cid,{ok=true,payout=payout,mult=mult,gems=gems,bombs=bl,new_balance=b.balance},PROTOCOL)
+
+    elseif msg.type == "get_leaderboard" then
+        local won, lost, deposited = {}, {}, {}
+        for name, b in pairs(bankData.accounts) do
+            if (b.gambling_won   or 0)>0 then table.insert(won,       {name=name,value=b.gambling_won})   end
+            if (b.gambling_lost  or 0)>0 then table.insert(lost,      {name=name,value=b.gambling_lost})  end
+            if (b.total_deposited or 0)>0 then table.insert(deposited,{name=name,value=b.total_deposited}) end
+        end
+        local desc = function(a,z) return a.value > z.value end
+        table.sort(won, desc) table.sort(lost, desc) table.sort(deposited, desc)
+        local function top10(t) local r={} for i=1,math.min(10,#t) do r[i]=t[i] end return r end
+        rednet.send(cid,{ok=true,won=top10(won),lost=top10(lost),deposited=top10(deposited)},PROTOCOL)
     end
 end
 
